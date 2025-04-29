@@ -1,0 +1,94 @@
+{
+  "definition": {
+    "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+    "actions": {
+      "Create_Guid_Id": {
+        "inputs": {
+          "variables": [
+            {
+              "name": "Message Guid Id",
+              "type": "string",
+              "value": "@{guid()}"
+            }
+          ]
+        },
+        "runAfter": {},
+        "type": "InitializeVariable"
+      },
+      "Create_or_update_document_(V3)": {
+        "inputs": {
+          "body": {
+            "id": "@variables('Message Guid Id')",
+            "message": "@variables('SBMessage')"
+          },
+          "host": {
+            "connection": {
+              "referenceName": "Save2CosmosDb"
+            }
+          },
+          "method": "post",
+          "path": "/v2/cosmosdb/@{encodeURIComponent('AccountNameFromSettings')}/dbs/@{encodeURIComponent('monitor')}/colls/@{encodeURIComponent('monitor')}/docs"
+        },
+        "runAfter": {
+          "Set_variable": [
+            "SUCCEEDED"
+          ]
+        },
+        "type": "ApiConnection"
+      },
+      "Initialize_variable": {
+        "inputs": {
+          "variables": [
+            {
+              "name": "SBMessage",
+              "type": "string"
+            }
+          ]
+        },
+        "runAfter": {
+          "Create_Guid_Id": [
+            "SUCCEEDED"
+          ]
+        },
+        "type": "InitializeVariable"
+      },
+      "Set_variable": {
+        "inputs": {
+          "name": "SBMessage",
+          "value": "@{json(base64ToString(triggerBody()?['ContentData']))}"
+        },
+        "runAfter": {
+          "Initialize_variable": [
+            "SUCCEEDED"
+          ]
+        },
+        "type": "SetVariable"
+      }
+    },
+    "contentVersion": "1.0.0.0",
+    "outputs": {},
+    "triggers": {
+      "When_a_message_is_received_in_a_topic_subscription_(auto-complete)": {
+        "inputs": {
+          "host": {
+            "connection": {
+              "referenceName": "ReadFromServiceBus"
+            }
+          },
+          "method": "get",
+          "path": "/@{encodeURIComponent(encodeURIComponent('customertransactions'))}/subscriptions/@{encodeURIComponent('customertransactionsubs')}/messages/head",
+          "queries": {
+            "subscriptionType": "Main"
+          }
+        },
+        "recurrence": {
+          "frequency": "Minute",
+          "interval": 3,
+          "timeZone": "W. Europe Standard Time"
+        },
+        "type": "ApiConnection"
+      }
+    }
+  },
+  "kind": "Stateful"
+}

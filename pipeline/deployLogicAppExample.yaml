@@ -1,0 +1,175 @@
+parameters:
+  - name: groupSelection
+    displayName: Choose deployment environment
+    type: string
+    default: Drift.AzureIntegration(dev)
+    values:
+      - Drift.AzureIntegration(dev)
+
+variables:
+   - group: ${{ parameters.groupSelection }}
+
+trigger: none  ##Only manual deploy
+
+pool:
+  vmImage: ubuntu-latest #use this if the custom self-hosted pool above is not ready
+
+
+stages:          
+- stage: ValidateAndCheck 
+  displayName: Validate and Check code 
+  jobs: 
+    - job: LintCode
+      displayName: Lint code
+      steps:
+        - script: |
+            az bicep build --file deployLogicAppIntegrationVnetAndSubnets.bicep
+            az bicep build --file deployLogicAppIntegration.bicep
+
+          name: LintBicepCode
+          displayName: Run Bicep linter
+
+    - job: ValidateDeployPOCNetEnvironment
+      displayName: Validate IAC Net Environment      
+      steps:
+      - task: AzureCLI@2
+        name: RunPreflightNetValidation
+        displayName: Run preflight Net validation
+        inputs:
+          azureSubscription: $(ServiceConnectionName)
+          scriptType: 'bash'
+          scriptLocation: 'inlineScript'
+          inlineScript: |
+            az deployment group validate \
+              --resource-group $(resourceGroupName) \
+              --template-file deployLogicAppIntegrationVnetAndSubnets.bicep \
+              --parameters location=$(location) resourceNamePrefix=$(namePrefix)
+
+    - job: ValidateDeployPOCEnvironment
+      displayName: Validate IAC Azure Environment      
+      steps:
+      - task: AzureCLI@2
+        name: RunPreflightValidation
+        displayName: Run preflight validation
+        inputs:
+          azureSubscription: $(ServiceConnectionName)
+          scriptType: 'bash'
+          scriptLocation: 'inlineScript'
+          inlineScript: |
+            az deployment group validate \
+              --resource-group $(resourceGroupName) \
+              --template-file deployLogicAppIntegration.bicep \
+              --parameters location=$(location) resourceNamePrefix=$(namePrefix)
+    
+    - job: PreviewDeployPOCNetEnvironment
+      displayName: Preview IAC Net Environment      
+      steps:
+      - task: AzureCLI@2
+        name: RunPreflightNetPreview
+        displayName: Run preflight Net Preview
+        inputs:
+          azureSubscription: $(ServiceConnectionName)
+          scriptType: 'bash'
+          scriptLocation: 'inlineScript'
+          inlineScript: |
+            az deployment group what-if \
+              --resource-group $(resourceGroupName) \
+              --template-file deployLogicAppIntegrationVnetAndSubnets.bicep \
+              --parameters location=$(location) resourceNamePrefix=$(namePrefix)
+
+    - job: PreviewDeployPOCEnvironment
+      displayName: Preview IAC Environment   
+      steps:
+      - task: AzureCLI@2
+        condition: false
+        inputs:
+          azureSubscription: $(ServiceConnectionName)
+          scriptType: 'bash'
+          scriptLocation: 'inlineScript'
+          inlineScript: |
+             az deployment group what-if \
+              --resource-group $(resourceGroupName) \
+              --template-file deployLogicAppIntegration.bicep \
+              --parameters location=$(location) resourceNamePrefix=$(namePrefix)
+
+- stage: deployLogicAppIntegration
+  displayName: Deploy Azure Integration IAC
+  jobs:
+  - job: deployLogicAppNetIntegrationJob
+    displayName: Deploy Azure Integration Net
+    timeoutInMinutes: 120
+    steps:
+      - task: AzureCLI@2
+        name: deployLogicAppNetIntegrationTask
+        displayName: Deploy Logic App
+        inputs:
+          azureSubscription: $(ServiceConnectionName)
+          scriptType: 'bash'
+          scriptLocation: 'inlineScript'
+          inlineScript: |
+            az deployment group create \
+              --name 'azureIntegrationNet_$(Build.BuildNumber)' \
+              --resource-group $(resourceGroupName) \
+              --template-file deployLogicAppIntegrationVnetAndSubnets.bicep \
+              --parameters location=$(location) resourceNamePrefix=$(namePrefix) 
+
+  - job: deployLogicAppIntegrationJob
+    displayName: Deploy Azure Integration
+    dependsOn: deployLogicAppNetIntegrationJob
+    timeoutInMinutes: 120
+    steps:
+      - task: AzureCLI@2
+        name: deployLogicAppIntegrationTask 
+        displayName: Deploy Azure Integration
+        inputs:
+          azureSubscription: $(ServiceConnectionName)
+          scriptType: 'bash'
+          scriptLocation: 'inlineScript'
+          inlineScript: |
+            az deployment group create \
+              --name 'azureIntegration_$(Build.BuildNumber)' \
+              --resource-group $(resourceGroupName) \
+              --template-file deployLogicAppIntegration.bicep \
+              --parameters location=$(location) resourceNamePrefix=$(namePrefix)
+
+- stage: CreateAndPublishLogicAppContents
+  displayName: Create And Publish LogicApp Contents
+  jobs:
+  - job: CreateAndPublishLogicAppContentsJob
+    displayName: Create Workflows and LogicApp Package
+    steps: 
+    - task: ArchiveFiles@2
+      displayName: 'Create project zip'
+      inputs:
+        rootFolderOrFile: '$(System.DefaultWorkingDirectory)/workflows'
+        includeRootFolder: false
+        archiveType: 'zip'
+        archiveFile: '$(Build.ArtifactStagingDirectory)/logicapps/$(logicAppArtifactName)$(Build.BuildId).zip'
+        replaceExistingArchive: true
+
+    - task: PublishPipelineArtifact@1
+      displayName: 'Publish project zip artifacts as fileshare'
+      inputs:
+        fileSharePath: '$(Build.ArtifactStagingDirectory)/logicapps'
+        artifact: 'drop'
+        publishLocation: 'pipeline'
+
+- stage: Deploy_Workflows
+  displayName: Deploy Workflows from package
+  jobs:
+  - job: Deploy_Workflow
+    displayName: Deploy Workflow LA
+    steps: 
+      - task: DownloadPipelineArtifact@2
+        condition: true
+        inputs:
+          path: '$(Pipeline.Workspace)'
+
+      - task: AzureFunctionApp@1
+        displayName: 'Deploy workflows to logic app'
+        inputs:
+          azureSubscription: $(ServiceConnectionName)
+          appType: 'workflowapp'
+          appName: '$(namePrefix)$(logicAppArtifactName)'
+          package: '$(Pipeline.Workspace)/drop/a/logicapps/$(logicAppArtifactName)$(Build.BuildId).zip'
+          deploymentMethod: 'zipDeploy'

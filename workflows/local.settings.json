@@ -1,0 +1,11 @@
+{
+  "IsEncrypted": false,
+  "Values": {
+    "AzureWebJobsStorage": "",
+    "WORKFLOWS_TENANT_ID": "00000000-0000-0000-0000-000000000000",
+    "WORKFLOWS_SUBSCRIPTION_ID": "00000000-0000-0000-0000-000000000000",
+    "WORKFLOWS_RESOURCE_GROUP_NAME": "-oc",
+    "WORKFLOWS_LOCATION_NAME": "westeurope",
+    "WORKFLOWS_MANAGEMENT_BASE_URI": "https://management.azure.com/"
+  }
+}

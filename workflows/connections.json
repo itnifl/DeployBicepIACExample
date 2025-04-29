@@ -1,0 +1,28 @@
+{
+  "managedApiConnections": {
+    "ReadFromServiceBus": {
+      "api": {
+        "id": "/subscriptions/00000000-0000-0000-0000-000000000000/providers/Microsoft.Web/locations/westeurope/managedApis/servicebus"
+      },
+      "authentication": {
+        "type": "ManagedServiceIdentity"
+      },
+      "connection": {
+        "id": "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/poc/providers/Microsoft.Web/connections/servicebus-4"
+      },
+      "connectionRuntimeUrl": "https://000000000000.05.common.logic-westeurope.azure-apihub.net/apim/servicebus/00000000000000000000000000000000"
+    },
+    "Save2CosmosDb": {
+      "api": {
+        "id": "/subscriptions/00000000-0000-0000-0000-000000000000/providers/Microsoft.Web/locations/westeurope/managedApis/documentdb"
+      },
+      "authentication": {
+        "type": "ManagedServiceIdentity"
+      },
+      "connection": {
+        "id": "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/poc/providers/Microsoft.Web/connections/documentdb-3"
+      },
+      "connectionRuntimeUrl": "https://000000000000.05.common.logic-westeurope.azure-apihub.net/apim/documentdb/00000000000000000000000000000000"
+    }
+  }
+}

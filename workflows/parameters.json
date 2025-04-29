@@ -1,0 +1,10 @@
+{
+  "SERVICEBUS_CONNECTION_RUNTIMEURL": {
+    "type": "String",
+    "value": "@appsetting('secretServiceBusConnectionString')"
+  },
+  "COSMOSDB_CONNECTION_RUNTIMEURL": {
+    "type": "String",
+    "value": "@appsetting('secretCosmosDbConnectionString')"
+  }
+}
